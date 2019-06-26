@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex">
+  <title>Форма авторизации</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue"></script>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<style>
+  html,body {
+    margin: 0;
+    height: 100%;
+  }
+</style>
+<body>
+
+  <!-- Это для запуска локально -->
+  <script src="assets/jquery-1.10.2.min.js"></script>
+
+  <!-- Код для вставки в тильду -->
+  <link href="https://fonts.googleapis.com/css?family=Roboto:400,700&display=swap" rel="stylesheet">
+  <link href="assets/style.css" rel="stylesheet">
+  <script src="assets/jquery.mask.min.js"></script>
+  <script src="assets/script.js"></script>
+
+  <div id="app">
+
+    <div class="auth-layout">
+      <div class="auth-form-popup js-auth-form-popup" data-popup="code">
+        <div class="auth-form-popup-close js-auth-form-popup-close"></div>
+
+        <!-- Успешная авторизация -->
+        <div v-if="authData" class="auth-form-popup-container auth-form-popup-container-success __invisible js-auth-form-popup-container js-auth-form-success">
+          <div class="auth-form-popup-heading">Вы успешно авторизованы</div>
+          <div class="auth-form-popup-text">
+            Сейчас перенаправим вас на страницу <br>подтверждения тарифа
+          </div>
+        </div>
+
+        <!-- Подтверждение кода авторизации -->
+        <div v-else-if="isSubmitPhone" class="auth-form-popup-container __invisible js-auth-form-popup-container js-auth-form-code">
+          <div class="auth-form-popup-heading">Подтверждение</div>
+          <form class="auth-form js-auth-form" data-context="code" data-ajax action="ajax/data.php" novalidate>
+            <div class="auth-form-popup-text">На указанный вами номер телефона выслана смс с кодом для подтверждения.</div>
+            <div class="auth-form-group">
+              <div class="auth-form-item auth-form-item__code js-auth-form-item">
+                <label>
+                  <input class="auth-form-item-field js-auth-form-item-field js-auth-form-code-field" type="text" name="code" placeholder="XXXX" required>
+                </label>
+                <span class="auth-form-item__error"><span>Неверный код</span></span>
+              </div>
+
+              <div class="auth-form-item auth-form-item__button-code">
+                <button
+                  :disabled="isDisabled"
+                  @click="getCode"
+                  class="auth-form-button __disabled js-auth-form-button js-auth-form-code-button"
+                  type="submit"
+                  >
+                  Подтвердить
+                </button>
+              </div>
+            </div>
+          </form>
+          <div class="auth-form-popup-text">
+            <span class="auth-form-code-resend js-auth-form-code-resend">Отправить еще раз</span>
+          </div>
+        </div>
+
+        <!-- Авторизация -->
+        <div v-else class="auth-form-popup-container js-auth-form-popup-container js-auth-form-phone">
+          <div class="auth-form-popup-heading">Войдите или зарегистрируйтесь</div>
+            <div class="auth-form js-auth-form" data-context="phone" data-ajax action="ajax/data.php" novalidate>
+              <div class="auth-form-container">
+                <div class="auth-form-item-title">По номеру телефона</div>
+                <div class="auth-form-group">
+                  <div class="auth-form-item auth-form-item__phone js-auth-form-item">
+                    <label>
+                      <input v-model="phone" class="auth-form-item-field js-auth-form-item-field" type="phone" name="phone" required>
+                    </label>
+                    <div class="auth-form-item__error"><span>Неверный формат</span></div>
+                  </div>
+                  <div class="auth-form-item auth-form-item__button">
+                    <button
+                      @click.prevent="getCode"
+                      :disabled="isDisabled"
+                      class="auth-form-button __disabled"
+                      >
+                      Далее
+                    </button>
+                  </div>
+                  <div class="auth-form-item auth-form-item__checkbox js-auth-form-item">
+                    <label>
+                      <input class="auth-form-item-field js-auth-form-item-field" type="checkbox" name="agree" required>
+                      <span class="auth-form-item-label">Я даю согласие на обработку моих персональных данных</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="auth-popup-social">
+              <div class="auth-form-item-title">Или через соц. сети</div>
+              <a href=""><span class="auth-popup-social-item auth-popup-social-item-fb"></span></a>
+              <a href=""><span class="auth-popup-social-item auth-popup-social-item-vk"></span></a>
+              <a href=""><span class="auth-popup-social-item auth-popup-social-item-gl"></span></a>
+            </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!--
+      Кнопка для открытия попапа через html элемент
+      или вызвать событие
+      открыть $(document).trigger('auth:popup:open');
+      закрыть $(document).trigger('auth:popup:close');
+  -->
+  <button class="auth-promo-popup-button js-auth-form-popup-open">Форма авторизации</button>
+  <!-- /.Код для вставки в тильду -->
+
+  <script>
+    const url = 'https://bo-staging.viasat.su/api';
+    new Vue({
+      el: "#app",
+      data: {
+        isSubmitPhone: false,
+        code: null,
+        phone: null,
+        authData: null,
+        isDisabled: false,
+      },
+      
+      methods: {
+        async getCode() {
+          try {
+            this.isDisabled = true;
+            await axios.post(`${url}/v1/auth_codes`, {
+              msisdn: this.phone,
+            });
+            this.isSubmitPhone = true;
+          }
+          catch(err) {
+            console.error(err);
+            this.isSubmitPhone = false;
+          }
+          this.isDisabled = false;
+        },
+        
+        async auth() {
+          try {
+            this.isDisabled = true;
+            let response = await axios.post(`${url}/v1/sessions`, {
+              msisdn: this.phone,
+              auth_code: this.code,
+            });
+            this.authData = response.data;
+          }
+          catch(err) {
+            console.error(err);
+          }
+          this.isDisabled = false;
+        },
+      }
+    });
+  </script>
+
+</body>
+</html>
