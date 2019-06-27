@@ -33,35 +33,42 @@
         <div class="auth-form-popup-close js-auth-form-popup-close"></div>
 
         <!-- Успешная авторизация -->
-        <div v-if="authData" class="auth-form-popup-container auth-form-popup-container-success __invisible js-auth-form-popup-container js-auth-form-success">
+        <div v-if="authData" class="auth-form-popup-container auth-form-popup-container-success js-auth-form-popup-container js-auth-form-success">
           <div class="auth-form-popup-heading">Вы успешно авторизованы</div>
           <div class="auth-form-popup-text">
             Сейчас перенаправим вас на страницу <br>подтверждения тарифа
           </div>
         </div>
-
         <!-- Подтверждение кода авторизации -->
-        <div v-else-if="isSubmitPhone" class="auth-form-popup-container __invisible js-auth-form-popup-container js-auth-form-code">
+        <div v-else-if="isSubmitPhone" class="auth-form-popup-container js-auth-form-popup-container js-auth-form-code">
           <div class="auth-form-popup-heading">Подтверждение</div>
           <form class="auth-form js-auth-form" data-context="code" data-ajax action="ajax/data.php" novalidate>
             <div class="auth-form-popup-text">На указанный вами номер телефона выслана смс с кодом для подтверждения.</div>
             <div class="auth-form-group">
               <div class="auth-form-item auth-form-item__code js-auth-form-item">
                 <label>
-                  <input class="auth-form-item-field js-auth-form-item-field js-auth-form-code-field" type="text" name="code" placeholder="XXXX" required>
+                  <input
+                    v-model="code"
+                    class="auth-form-item-field js-auth-form-item-field js-auth-form-code-field"
+                    type="text"
+                    name="code"
+                    placeholder="XXXX"
+                    required
+                    >
                 </label>
                 <span class="auth-form-item__error"><span>Неверный код</span></span>
               </div>
 
               <div class="auth-form-item auth-form-item__button-code">
                 <button
-                  :disabled="isDisabled"
+                  :disabled="isDisabledCode"
                   @click="getCode"
-                  class="auth-form-button __disabled js-auth-form-button js-auth-form-code-button"
+                  class="auth-form-button js-auth-form-button js-auth-form-code-button"
                   type="submit"
                   >
                   Подтвердить
                 </button>
+                {{!this.code}} {{this.disabled}}
               </div>
             </div>
           </form>
@@ -86,15 +93,15 @@
                   <div class="auth-form-item auth-form-item__button">
                     <button
                       @click.prevent="getCode"
-                      :disabled="isDisabled"
-                      class="auth-form-button __disabled"
+                      :disabled="isDisabledPhone"
+                      class="auth-form-button"
                       >
                       Далее
                     </button>
                   </div>
                   <div class="auth-form-item auth-form-item__checkbox js-auth-form-item">
                     <label>
-                      <input class="auth-form-item-field js-auth-form-item-field" type="checkbox" name="agree" required>
+                      <input v-model="agree" class="auth-form-item-field js-auth-form-item-field" type="checkbox" name="agree" required>
                       <span class="auth-form-item-label">Я даю согласие на обработку моих персональных данных</span>
                     </label>
                   </div>
@@ -132,15 +139,27 @@
         code: null,
         phone: null,
         authData: null,
-        isDisabled: false,
+        disabled: false,
+        agree: false,
+      },
+
+      computed: {
+        isDisabledPhone() {
+          return !this.phone || this.convertPhone().length < 11 || !this.agree || this.disabled;
+        },
+        isDisabledCode() {
+          return !this.code || this.disabled;
+        }
       },
       
       methods: {
         async getCode() {
+          if (!this.phone) return;
+
           try {
-            this.isDisabled = true;
+            this.disabled = true;
             await axios.post(`${url}/v1/auth_codes`, {
-              msisdn: this.phone,
+              msisdn: this.convertPhone(),
             });
             this.isSubmitPhone = true;
           }
@@ -148,14 +167,14 @@
             console.error(err);
             this.isSubmitPhone = false;
           }
-          this.isDisabled = false;
+          this.disabled = false;
         },
         
         async auth() {
           try {
-            this.isDisabled = true;
+            this.disabled = true;
             let response = await axios.post(`${url}/v1/sessions`, {
-              msisdn: this.phone,
+              msisdn: this.convertPhone(),
               auth_code: this.code,
             });
             this.authData = response.data;
@@ -163,8 +182,13 @@
           catch(err) {
             console.error(err);
           }
-          this.isDisabled = false;
+          this.disabled = false;
         },
+
+        convertPhone() {
+          if (!this.phone) return;
+          return this.phone.match(/\d/g).join('');
+        }
       }
     });
   </script>
