@@ -6,7 +6,7 @@ const $vue = new Vue({
     isSubmitPhone: false,
     code: null,
     phone: null,
-    authData: null,
+    session: null,
     disabled: false,
     agree: false,
 
@@ -23,6 +23,20 @@ const $vue = new Vue({
     },
     isDisabledCode() {
       return !this.code || this.disabled;
+    },
+    currentSessionId() {
+      let token = _.get(this.session, 'auth.token');
+      if (!token) {
+        return;
+      }
+
+      try {
+        let jwt = jwt_decode(token);
+        return jwt.session_id;
+      }
+      catch (err) {
+        console.error('Unexpected situation: bad jwt token');
+      }
     },
 
     $oauthProviders() {
@@ -107,11 +121,10 @@ const $vue = new Vue({
         let response = await axios.post(`${url}/v1/sessions`, {
           ...auth
         });
-        this.authData = response.data;
-        let auth_token = _.get(this.authData, 'auth.token');
-        Cookies.set('auth_token', auth_token);
-        this.session = jwt_decode(auth_token);
-        axios.defaults.headers.common['Authorization'] = auth_token;
+
+        this.session = response.data;
+        Cookies.set('auth', this.session.auth, { expires: 7, path: '/' }); // 7d
+        axios.defaults.headers.common['Authorization'] = this.session.auth.token;
       }
       catch(err) {
         console.error(err);
@@ -121,9 +134,10 @@ const $vue = new Vue({
 
     async logout() {
       try {
-        await axios.delete(`${url}/v1/sessions/${this.session.session_id}`);
-        this.authData = null;
-        Cookies.remove('auth_token');
+        await axios.delete(`${url}/v1/sessions/${this.currentSessionId}`);
+        this.session = null;
+        Cookies.remove('auth');
+        delete axios.defaults.headers.common['Authorization'];
       }
       catch(err) {
         console.error(err);
@@ -195,15 +209,17 @@ const $vue = new Vue({
   },
 
   async mounted() {
-    let auth_token = Cookies.get('auth_token');
-    if (!auth_token) return;
+    let auth = Cookies.getJSON('auth');
+    if (!auth) return;
 
-    this.session = jwt_decode(auth_token);
-    axios.defaults.headers.common['Authorization'] = auth_token;
+    axios.defaults.headers.common['Authorization'] = auth.token;
 
     try {
-      let response = await axios.get(`${url}/v1/sessions`);
-      this.authData = _.find(response.data, { id: this.session.session_id});
+      let response = await axios.get(`${url}/v1/profile`);
+      this.session = {
+        auth: auth,
+        user: response.data,
+      };
     }
     catch(err) {
       console.error(err);

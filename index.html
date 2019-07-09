@@ -37,7 +37,7 @@
         <div class="auth-form-popup-close js-auth-form-popup-close"></div>
 
         <!-- Успешная авторизация -->
-        <div v-if="authData" class="auth-form-popup-container auth-form-popup-container-success js-auth-form-popup-container js-auth-form-success">
+        <div v-if="session" class="auth-form-popup-container auth-form-popup-container-success js-auth-form-popup-container js-auth-form-success">
           <div class="auth-form-popup-heading">Вы успешно авторизованы</div>
           <div class="auth-form-popup-text">
             Сейчас перенаправим вас на страницу <br>подтверждения тарифа
@@ -126,7 +126,7 @@
 
     </div>
 
-    <button v-if="!authData" class="auth-promo-popup-button js-auth-form-popup-open">Форма авторизации</button>
+    <button v-if="!session" class="auth-promo-popup-button js-auth-form-popup-open">Форма авторизации</button>
   </div>
 
   <!--
