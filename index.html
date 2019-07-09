@@ -8,6 +8,10 @@
   <title>Форма авторизации</title>
   <script src="https://cdn.jsdelivr.net/npm/vue"></script>
   <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <script src='https://cdn.jsdelivr.net/g/lodash@4(lodash.min.js)'></script>
+  <script src="https://cdn.jsdelivr.net/npm/js-cookie@2/src/js.cookie.min.js"></script>
+  <script src="https://unpkg.com/async-oauth-popup@1.0.3/dist/index.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qs/6.7.0/qs.min.js"></script>
 </head>
 <style>
   html,body {
@@ -25,11 +29,11 @@
   <link href="assets/style.css" rel="stylesheet">
   <script src="assets/jquery.mask.min.js"></script>
   <script src="assets/script.js"></script>
+  <script src="assets/jwt-decode.min.js"></script>
 
   <div id="app">
-
     <div class="auth-layout">
-      <div class="auth-form-popup js-auth-form-popup" data-popup="code">
+      <div class="auth-form-popup js-auth-form-popup __opened" data-popup="code">
         <div class="auth-form-popup-close js-auth-form-popup-close"></div>
 
         <!-- Успешная авторизация -->
@@ -45,7 +49,7 @@
           <form class="auth-form js-auth-form" data-context="code" data-ajax action="ajax/data.php" novalidate>
             <div class="auth-form-popup-text">На указанный вами номер телефона выслана смс с кодом для подтверждения.</div>
             <div class="auth-form-group">
-              <div class="auth-form-item auth-form-item__code js-auth-form-item">
+              <div :class="{ '__error': messageError }" class="auth-form-item auth-form-item__code js-auth-form-item">
                 <label>
                   <input
                     v-model="code"
@@ -53,42 +57,44 @@
                     type="text"
                     name="code"
                     placeholder="XXXX"
-                    required
                     >
                 </label>
-                <span class="auth-form-item__error"><span>Неверный код</span></span>
+                <span v-if="messageError" class="auth-form-item__error">
+                  <span>{{ messageError }}</span>
+                </span>
               </div>
 
               <div class="auth-form-item auth-form-item__button-code">
                 <button
                   :disabled="isDisabledCode"
-                  @click="getCode"
+                  @click="auth"
                   class="auth-form-button js-auth-form-button js-auth-form-code-button"
-                  type="submit"
                   >
                   Подтвердить
                 </button>
-                {{!this.code}} {{this.disabled}}
               </div>
             </div>
           </form>
           <div class="auth-form-popup-text">
-            <span class="auth-form-code-resend js-auth-form-code-resend">Отправить еще раз</span>
+            <button :disabled="replyTime != 30" @click="getCode('reply')" class="auth-form-code-resend">Отправить еще раз</button>
           </div>
+          <p v-if="replyTime != 30">Повторная отправка кода через: {{ replyTime }} секунд</p>
         </div>
 
         <!-- Авторизация -->
-        <div v-else class="auth-form-popup-container js-auth-form-popup-container js-auth-form-phone">
+        <div v-else class="auth-form-popup-container">
           <div class="auth-form-popup-heading">Войдите или зарегистрируйтесь</div>
             <div class="auth-form js-auth-form" data-context="phone" data-ajax action="ajax/data.php" novalidate>
               <div class="auth-form-container">
                 <div class="auth-form-item-title">По номеру телефона</div>
                 <div class="auth-form-group">
-                  <div class="auth-form-item auth-form-item__phone js-auth-form-item">
+                  <div :class="{ '__error': messageError }" class="auth-form-item auth-form-item__phone">
                     <label>
-                      <input v-model="phone" class="auth-form-item-field js-auth-form-item-field" type="phone" name="phone" required>
+                      <input v-model="phone" class="auth-form-item-field" type="phone" name="phone">
                     </label>
-                    <div class="auth-form-item__error"><span>Неверный формат</span></div>
+                    <div v-if="messageError" class="auth-form-item__error">
+                      <span>{{ messageError }}</span>
+                    </div>
                   </div>
                   <div class="auth-form-item auth-form-item__button">
                     <button
@@ -101,7 +107,7 @@
                   </div>
                   <div class="auth-form-item auth-form-item__checkbox js-auth-form-item">
                     <label>
-                      <input v-model="agree" class="auth-form-item-field js-auth-form-item-field" type="checkbox" name="agree" required>
+                      <input v-model="agree" class="auth-form-item-field js-auth-form-item-field" type="checkbox" name="agree">
                       <span class="auth-form-item-label">Я даю согласие на обработку моих персональных данных</span>
                     </label>
                   </div>
@@ -110,15 +116,17 @@
             </div>
             <div class="auth-popup-social">
               <div class="auth-form-item-title">Или через соц. сети</div>
-              <a href=""><span class="auth-popup-social-item auth-popup-social-item-fb"></span></a>
-              <a href=""><span class="auth-popup-social-item auth-popup-social-item-vk"></span></a>
-              <a href=""><span class="auth-popup-social-item auth-popup-social-item-gl"></span></a>
+              <a href="" @click.prevent="$oauth('fb')"><span class="auth-popup-social-item auth-popup-social-item-fb"></span></a>
+              <a href="" @click.prevent="$oauth('vk')"><span class="auth-popup-social-item auth-popup-social-item-vk"></span></a>
+              <a href="" ><span class="auth-popup-social-item auth-popup-social-item-gl"></span></a>
             </div>
         </div>
 
       </div>
 
     </div>
+
+    <button v-if="!authenticated" class="auth-promo-popup-button js-auth-form-popup-open">Форма авторизации</button>
   </div>
 
   <!--
@@ -127,11 +135,11 @@
       открыть $(document).trigger('auth:popup:open');
       закрыть $(document).trigger('auth:popup:close');
   -->
-  <button class="auth-promo-popup-button js-auth-form-popup-open">Форма авторизации</button>
   <!-- /.Код для вставки в тильду -->
 
   <script>
     const url = 'https://bo-staging.viasat.su/api';
+
     new Vue({
       el: "#app",
       data: {
@@ -141,6 +149,13 @@
         authData: null,
         disabled: false,
         agree: false,
+
+        messageError: null,
+
+        authenticated: false,
+        session: null,
+
+        replyTime: 30,
       },
 
       computed: {
@@ -149,11 +164,41 @@
         },
         isDisabledCode() {
           return !this.code || this.disabled;
-        }
+        },
+
+        $oauthProviders() {
+          const protocol = 'http://';
+          return {
+            vk: {
+              ...this.generateProvider.call(this, {
+                name: 'vk',
+                protocol: protocol,
+                baseDomain: 'oauth.vk.com/authorize',
+                clientId: '6778060',
+                redirectPath: '/index',
+                scope: 'email,offline',
+              }),
+              popupOptions: { width: 580, height: 400 }, // размеры попапа
+            },
+            fb: {
+              ...this.generateProvider.call(this, {
+                name: 'fb',
+                protocol: protocol,
+                baseDomain: 'www.facebook.com/dialog/oauth',
+                clientId: '1800751203311629',
+                redirectPath: '/index',
+                scope: 'public_profile,email',
+              }),
+              popupOptions: { width: 580, height: 400 },
+            },
+          };
+        },
+        
       },
       
       methods: {
-        async getCode() {
+        async getCode(reply) {
+          let vm = this;
           if (!this.phone) return;
 
           try {
@@ -165,19 +210,46 @@
           }
           catch(err) {
             console.error(err);
-            this.isSubmitPhone = false;
+            this.messageError = _.get(err, 'response.data.message') || 'Неизвестная ошибка';
+            if (!reply) {
+              this.isSubmitPhone = false;
+            }
           }
+          var timer = setInterval(function() {
+            if (vm.replyTime <= 0) {
+              clearInterval(timer);
+              vm.replyTime = 30;
+            }
+            else {
+              vm.replyTime--;
+            }
+          }, 1000);
           this.disabled = false;
         },
         
-        async auth() {
+        async auth(provider, popupCode, redirectUri) {
+          var auth = {};
+          if (popupCode) {
+            auth = {
+              provider: provider,
+              code: popupCode,
+              redirect_uri: redirectUri,
+            }
+          }
+          else {
+            auth =  {
+              msisdn: this.convertPhone(),
+              auth_code: this.code,
+            }
+          }
+  
           try {
             this.disabled = true;
             let response = await axios.post(`${url}/v1/sessions`, {
-              msisdn: this.convertPhone(),
-              auth_code: this.code,
+              ...auth
             });
             this.authData = response.data;
+            Cookies.set('auth_token', _.get(this.authData, 'auth.token'));
           }
           catch(err) {
             console.error(err);
@@ -185,9 +257,96 @@
           this.disabled = false;
         },
 
+        async logout() {
+          try {
+            await axios.delete(`${url}/sessions/${this.session.session_id}`);
+            this.authenticated = false;
+            Cookies.remove('auth_token');
+          }
+          catch(err) {
+            console.error(err);
+          }
+        },
+
         convertPhone() {
           if (!this.phone) return;
           return this.phone.match(/\d/g).join('');
+        },
+
+        async $oauth(provider) {
+          const providerConfig = this.$oauthProviders[provider];
+          const oauthPopup = new OAuthPopup(providerConfig.popupUrl, providerConfig.name, providerConfig.popupOptions);
+
+          try {
+            var response = await oauthPopup.open(providerConfig.redirectUri); // { code, state }
+          }
+          catch (err) {
+            alert('Не удалось авторизоваться через указанный сервис.');
+            throw err;
+          }
+          
+          try {
+            this.auth(providerConfig.name, response.code, providerConfig.redirectUri);
+          }
+          catch (err) {
+            alert(err.response.data.message);
+            throw err;
+          }
+        },
+
+        generateUrl({ protocol = 'https://', baseUrl, clientId, redirectPath, display, scope, state }) {
+          return baseUrl + '?' + Qs.stringify({
+            client_id: clientId,
+            redirect_uri: protocol + window.location.host + redirectPath, // куда нас вернёт вк после авторизации. важно, что потом нужно бэку отправить точно такой же redirect_uri (!)
+            display: display || 'popup',
+            scope: scope || 'email',
+          });
+        },
+
+        generateProvider({ name, protocol = 'https://', baseDomain, clientId, redirectPath, display, scope, state }) {
+          let baseUrl = protocol + baseDomain;
+          return {
+            name: name,
+            popupUrl: this.generateUrl.call(this, { // для открытия попапа
+              protocol: protocol,
+              baseUrl: baseUrl,
+              clientId: clientId,
+              redirectPath: redirectPath,
+              scope: scope,
+              display: display,
+              state: state,
+            }),
+            pageUrl: this.generateUrl.call(this, { // для открытия в новой вкладки
+              protocol: protocol,
+              baseUrl: baseUrl,
+              clientId: clientId,
+              redirectPath: redirectPath,
+              scope: scope,
+
+              display: display,
+              state: state + '&newPage=true',
+            }),
+            redirectUri: protocol + window.location.host + redirectPath,
+            popupOptions: { width: 580, height: 400 },
+          };
+        }
+      },
+
+      async mounted() {
+        let auth_token = Cookies.get('auth_token');
+        if (!auth_token) return;
+
+        this.session = jwt_decode(auth_token);
+        axios.defaults.headers.common['Authorization'] = auth_token;
+
+        try {
+          let response = await axios.get(`${url}/v1/sessions`);
+          this.authData = _.find(response.data, { id: this.session.session_id});
+          this.authenticated = _.get(this.authData, 'active');
+        }
+        catch(err) {
+          console.error(err);
+          this.authenticated = false;
         }
       }
     });
