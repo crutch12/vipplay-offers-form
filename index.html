@@ -278,8 +278,8 @@
 
   <!-- @NOTE: объявляю шаблоны компонентов через text/x-template https://ru.vuejs.org/v2/guide/components-edge-cases.html#X-Templates -->
   <script type="text/x-template" id="vue-offers-template">  <!-- компонент предложений -->
-    <div>
-      <div>
+    <div class="offers-layout">
+      <div class="offers-promocode">
         <input type="text" v-model="promocode">
         <button @click="getOffers" :disabled="promocode == lastPromocode">Применить</button>
       </div>
@@ -328,9 +328,7 @@
       <button @click="showOffers">Показать предложения</button>
     </div>
 
-    <div class="offers-layout">
-      <vue-offers v-if="offersVisible"></vue-offers>
-    </div>
+    <vue-offers v-if="offersVisible"></vue-offers>
   </div>
 
   <!--
