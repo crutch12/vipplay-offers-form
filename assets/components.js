@@ -19,7 +19,7 @@ const $vue = new Vue({
 
   computed: {
     isDisabledPhone() {
-      return !this.phone || this.convertPhone().length < 11 || !this.agree || this.disabled;
+      return !this.phone || this.convertedPhone.length < 11 || !this.agree || this.disabled;
     },
     isDisabledCode() {
       return !this.code || this.disabled;
@@ -37,6 +37,10 @@ const $vue = new Vue({
       catch (err) {
         console.error('Unexpected situation: bad jwt token');
       }
+    },
+    convertedPhone() {
+      if (!this.phone) return;
+      return this.phone.match(/\d/g).join('');
     },
 
     $oauthProviders() {
@@ -77,7 +81,7 @@ const $vue = new Vue({
       try {
         this.disabled = true;
         await axios.post(`${url}/v1/auth_codes`, {
-          msisdn: this.convertPhone(),
+          msisdn: this.convertedPhone,
         });
         this.isSubmitPhone = true;
       }
@@ -111,7 +115,7 @@ const $vue = new Vue({
       }
       else {
         auth =  {
-          msisdn: this.convertPhone(),
+          msisdn: this.convertedPhone,
           auth_code: this.code,
         }
       }
@@ -121,6 +125,9 @@ const $vue = new Vue({
         let response = await axios.post(`${url}/v1/sessions`, {
           ...auth
         });
+
+        this.isSubmitPhone = false;
+        this.code = null;
 
         this.session = response.data;
         Cookies.set('auth', this.session.auth, { expires: 7, path: '/' }); // 7d
@@ -142,11 +149,6 @@ const $vue = new Vue({
       catch(err) {
         console.error(err);
       }
-    },
-
-    convertPhone() {
-      if (!this.phone) return;
-      return this.phone.match(/\d/g).join('');
     },
 
     async $oauth(provider) {
